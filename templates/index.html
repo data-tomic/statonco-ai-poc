@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StatOnco PoC (Этап 0: Ввод данных)</title> <!-- Изменен Title -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Стили можно оставить */
+        .spinner-border { width: 3rem; height: 3rem; }
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 1050; justify-content: center; align-items: center; flex-direction: column; /* Для текста под спиннером */ }
+        .alert { word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-light bg-light mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                🔬 StatOnco PoC: Интерактивный Анализ
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Flash сообщения -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message | safe }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <h2>Этап 0: Загрузка данных и описание задачи</h2>
+        <hr>
+         <!-- ИЗМЕНЕНА ФОРМА: action указывает на новый маршрут -->
+         <form method="POST" action="{{ url_for('start_analysis') }}" enctype="multipart/form-data" id="start-analysis-form">
+             <div class="row">
+                 <div class="col-md-6 mb-3">
+                     <label for="file" class="form-label">1. Загрузите Excel файл (.xlsx)</label>
+                     <input class="form-control" type="file" id="file" name="file" accept=".xlsx" required>
+                 </div>
+                 <div class="col-md-6 mb-3">
+                     <label for="query" class="form-label">2. Опишите задачу анализа</label>
+                     <textarea class="form-control" id="query" name="query" rows="4" placeholder="Примеры: 'Сравни средний возраст в группах с рецидивом и без рецидива', 'Посчитай частоту стадий T', 'Есть ли связь между типом операции и послеоперационными осложнениями?'" required>{{ request.form.get('query', '') }}</textarea> <!-- Сохраняем ввод при ошибке -->
+                 </div>
+             </div>
+             <button type="submit" class="btn btn-primary w-100">
+                 Начать анализ и проверку данных →
+             </button>
+         </form>
+
+         <!-- Прелоадер -->
+         <div class="loading-overlay" id="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="ms-2 mt-2">Отправка данных и первичный анализ...</p> <!-- Изменен текст -->
+        </div>
+
+        <!-- Область результатов УДАЛЕНА отсюда -->
+
+    </div>
+
+    <footer class="mt-5 text-center text-muted">
+        <hr>
+        <p>StatOnco PoC v0.4 (Интерактивный)</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- ИЗМЕНЕН СКРИПТ: ID формы -->
+    <script>
+        document.getElementById('start-analysis-form').addEventListener('submit', function(event) {
+             // Простая проверка на наличие файла (браузер сделает для required полей)
+             const fileInput = document.getElementById('file');
+             const queryInput = document.getElementById('query');
+             if (!fileInput.files || fileInput.files.length === 0) {
+                 // alert('Пожалуйста, выберите файл.'); // Можно раскомментировать, но required должно хватить
+                 // event.preventDefault(); // Остановить отправку, если нужно
+                 // return;
+             }
+             if (!queryInput.value.trim()) {
+                // alert('Пожалуйста, введите запрос.');
+                // event.preventDefault();
+                // return;
+             }
+             // Показываем спиннер только если базовая валидность пройдена
+             if (this.checkValidity()) {
+                document.getElementById('loading-spinner').style.display = 'flex';
+             }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StatOnco PoC (Этап 1: Подтверждение столбцов)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .dataframe { width: auto; max-width: 100%; margin-bottom: 1rem; font-size: 0.9em; } /* Уменьшил шрифт таблицы */
+        .column-list-group { max-height: 400px; overflow-y: auto; } /* Скролл для длинных списков */
+         /* Стили для прелоадера */
+        .spinner-border { width: 3rem; height: 3rem; }
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 1050; justify-content: center; align-items: center; flex-direction: column; }
+        .list-group-item { display: flex; align-items: center; } /* Для выравнивания чекбокса и текста */
+        .list-group-item .form-check-input { margin-top: 0; margin-right: 0.5rem !important;} /* Корректировка отступа чекбокса */
+        .list-group-item .text-muted, .list-group-item .text-success { margin-left: auto; /* Прижать % пропусков к правому краю */ white-space: nowrap; /* Запретить перенос */}
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-light bg-light mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                🔬 StatOnco PoC: Интерактивный Анализ
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Flash сообщения -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message | safe }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <h2>Этап 1: Проверка данных и уточнение запроса</h2>
+        <hr>
+
+        <div class="row">
+            <div class="col-lg-5 mb-3"> {# Изменил на lg для лучшего вида на средних экранах #}
+                <h4>Анализ полноты данных:</h4>
+                {# Используем HTML из сессии, переданный как completeness_html #}
+                {% if completeness_html %}
+                    <div class="table-responsive">
+                         {{ completeness_html | safe }}
+                    </div>
+                {% else %}
+                    <div class="alert alert-secondary">Не удалось рассчитать отчет о полноте данных.</div>
+                {% endif %}
+
+                <h4 class="mt-4">Ваш исходный запрос:</h4>
+                <div class="card">
+                    <div class="card-body bg-light">
+                        <p class="card-text"><em>{{ original_query }}</em></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7"> {# Изменил на lg #}
+                <form method="POST" action="{{ url_for('confirm_columns') }}" id="confirm-columns-form">
+                    <h4>Предложения LLM:</h4>
+                    {% if llm_suggestions %}
+                         {% if llm_suggestions.error %}
+                            <div class="alert alert-danger">
+                                <strong>Ошибка LLM на этапе оценки:</strong> {{ llm_suggestions.error }}
+                                {% if llm_suggestions.raw_response %} <hr> <pre><code>{{ llm_suggestions.raw_response }}</code></pre> {% endif %}
+                                <p>Невозможно продолжить. <a href="{{ url_for('index') }}">Попробуйте снова</a>.</p>
+                            </div>
+                            {# Форма не будет показана или будет заблокирована ниже #}
+                         {% else %}
+                            {# Эта часть показывается только если нет ошибки LLM #}
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Столбцы, предложенные LLM для анализа</strong> (отметьте те, которые хотите использовать):</label>
+                                <div class="list-group column-list-group border rounded p-2">
+                                    {% if all_columns %} {# Проверка, что список столбцов есть #}
+                                        {# --- ИСПРАВЛЕНИЕ: Используем report_df, переданный в render_template --- #}
+                                        {% set report_data = report_df.set_index('Столбец') if report_df is not none and not report_df.empty else none %}
+                                        {# --- КОНЕЦ ИСПРАВЛЕНИЯ --- #}
+
+                                        {% for col in all_columns %}
+                                            <label class="list-group-item">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="confirmed_columns"
+                                                       value="{{ col }}"
+                                                       {% if col in llm_suggestions.get('suggested_columns', []) %}checked{% endif %}> <!-- Отмечаем предложенные -->
+                                                {{ col }}
+                                                {# --- ИСПРАВЛЕНИЕ: Используем report_data --- #}
+                                                {% if report_data is not none and col in report_data.index %} {# Проверяем наличие #}
+                                                    {% set col_completeness = report_data.loc[col, '% пропусков'] %} {# Получаем % пропусков #}
+                                                    {% if col_completeness > 0 %}
+                                                        <small class="text-muted">({{ "%.1f"|format(col_completeness) }}% проп.)</small> {# Сократил текст #}
+                                                    {% elif col_completeness == 0 %}
+                                                         <small class="text-success">(0% проп.)</small>
+                                                    {% endif %}
+                                                {% endif %}
+                                                {# --- КОНЕЦ ИСПРАВЛЕНИЯ --- #}
+                                            </label>
+                                        {% endfor %}
+                                    {% else %}
+                                        <p class="text-muted p-2">Нет доступных столбцов для отображения.</p>
+                                    {% endif %} {# end if all_columns #}
+                                </div>
+                                <div class="form-text">Выберите столбцы, которые точно соответствуют вашему запросу.</div>
+                            </div>
+
+                            {% if llm_suggestions.get('questions_to_user') %}
+                                <div class="mb-3">
+                                    <label for="clarifications" class="form-label"><strong>Уточняющие вопросы от LLM:</strong></label>
+                                    <div class="alert alert-info">
+                                        <ul>
+                                        {% for question in llm_suggestions.questions_to_user %}
+                                            <li>{{ question }}</li>
+                                        {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {# Возвращаем введенный текст, если была ошибка валидации #}
+                                    <textarea class="form-control" id="clarifications" name="clarifications" rows="3" placeholder="Напишите здесь ваши ответы и уточнения...">{{ user_clarifications_input or '' }}</textarea>
+                                    <div class="form-text">Ваши ответы помогут LLM составить точный план анализа.</div>
+                                </div>
+                            {% else %}
+                                 <p class="text-muted">LLM не задала уточняющих вопросов.</p>
+                                 <input type="hidden" name="clarifications" value=""> {# Пустое значение, если вопросов нет #}
+                            {% endif %}
+
+                            <button type="submit" class="btn btn-primary w-100 mt-3">
+                                Подтвердить столбцы и запросить план анализа →
+                            </button>
+
+                         {% endif %} {# end if not llm_suggestions.error #}
+                    {% else %}
+                         <div class="alert alert-warning">Не удалось получить предложения от LLM. <a href="{{ url_for('index') }}">Попробуйте снова</a>.</div>
+                    {% endif %} {# end if llm_suggestions #}
+                </form>
+            </div>
+        </div>
+
+         <!-- Прелоадер для следующего шага -->
+         <div class="loading-overlay" id="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="ms-2 mt-2">Запрос плана анализа у LLM...</p>
+        </div>
+
+    </div>
+
+    <footer class="mt-5 text-center text-muted">
+        <hr>
+        <p>StatOnco PoC v0.4.1 (Интерактивный)</p> {# Обновил версию #}
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+     <script>
+        document.getElementById('confirm-columns-form').addEventListener('submit', function(event) {
+            // Проверим, выбран ли хоть один столбец
+             const checkboxes = document.querySelectorAll('input[name="confirmed_columns"]:checked');
+             if (checkboxes.length === 0) {
+                 alert('Пожалуйста, выберите хотя бы один столбец для анализа.');
+                 event.preventDefault(); // Остановить отправку формы
+                 return;
+             }
+             // Показываем спиннер
+             document.getElementById('loading-spinner').style.display = 'flex';
+        });
+    </script>
+</body>
+</html>

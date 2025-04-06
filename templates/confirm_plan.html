@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StatOnco PoC (Этап 2: Подтверждение плана)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+     <style>
+         /* Стили для прелоадера */
+        .spinner-border { width: 3rem; height: 3rem; }
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 1050; justify-content: center; align-items: center; flex-direction: column; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-light bg-light mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                🔬 StatOnco PoC: Интерактивный Анализ
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+         <!-- Flash сообщения -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message | safe }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <h2>Этап 2: Подтверждение плана анализа</h2>
+        <hr>
+
+        <div class="card">
+            <div class="card-header">
+                Предложенный LLM план анализа
+            </div>
+            <div class="card-body">
+                 {% if proposed_plan %}
+                    {% if proposed_plan is mapping and proposed_plan.error %} {# Обработка ошибки от LLM #}
+                         <div class="alert alert-danger">
+                             <strong>Ошибка при генерации плана LLM:</strong> {{ proposed_plan.error }}
+                             {% if proposed_plan.raw_response %} <hr> <pre><code>{{ proposed_plan.raw_response }}</code></pre> {% endif %}
+                         </div>
+                         <a href="{{ url_for('index') }}" class="btn btn-secondary">← Начать заново</a>
+                    {% elif proposed_plan is iterable and proposed_plan is not string and proposed_plan is not mapping %}
+                         <p>Пожалуйста, проверьте предложенные шаги анализа. Если все верно, нажмите "Подтвердить и выполнить".</p>
+                         <ul class="list-group">
+                             {% for step in proposed_plan %}
+                                 <li class="list-group-item">
+                                     <strong>Тип:</strong> {{ step.get('analysis_type', 'N/A') }}<br>
+                                     {% if step.get('analysis_type') == 't-test' %}
+                                         Переменная: <code>{{ step.get('variable', '???') }}</code><br>
+                                         Группировка: <code>{{ step.get('grouping_variable', '???') }}</code>
+                                     {% elif step.get('analysis_type') == 'chi-square' %}
+                                          Переменная 1: <code>{{ step.get('variable1', '???') }}</code><br>
+                                          Переменная 2: <code>{{ step.get('variable2', '???') }}</code>
+                                     {% elif step.get('analysis_type') == 'descriptive_stats' %}
+                                          Переменная: <code>{{ step.get('variable', '???') }}</code>
+                                     {% elif step.get('analysis_type') == 'error' %}
+                                          <strong class="text-danger">Проблема:</strong> {{ step.get('message', 'Нет деталей') }}
+                                     {% else %}
+                                         <em>(Детали не распознаны для этого типа)</em>
+                                     {% endif %}
+                                 </li>
+                             {% endfor %}
+                         </ul>
+                         <form method="POST" action="{{ url_for('execute_plan') }}" class="mt-4" id="execute-plan-form">
+                             <button type="submit" class="btn btn-success w-100">
+                                 ✅ Подтвердить и выполнить анализ
+                             </button>
+                             <!-- Можно добавить кнопку "Назад" или "Отклонить", но это усложнит логику -->
+                             <a href="{{ url_for('index') }}" class="btn btn-link w-100 mt-2">Отменить и начать заново</a>
+                         </form>
+                    {% else %}
+                         <div class="alert alert-warning">Получен неожиданный формат плана от LLM. Не список словарей.</div>
+                         <pre><code>{{ proposed_plan | tojson(indent=2) }}</code></pre>
+                         <a href="{{ url_for('index') }}" class="btn btn-secondary">← Начать заново</a>
+                    {% endif %}
+                 {% else %}
+                    <div class="alert alert-danger">Не найден предложенный план анализа в сессии.</div>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Начать заново</a>
+                 {% endif %}
+            </div>
+        </div>
+
+         <!-- Прелоадер для финального шага -->
+         <div class="loading-overlay" id="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="ms-2 mt-2">Выполнение анализа и генерация результатов...</p>
+        </div>
+
+    </div>
+
+    <footer class="mt-5 text-center text-muted">
+        <hr>
+        <p>StatOnco PoC v0.4 (Интерактивный)</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+     <script>
+        // Показываем спиннер при отправке формы подтверждения
+        document.getElementById('execute-plan-form').addEventListener('submit', function() {
+             document.getElementById('loading-spinner').style.display = 'flex';
+        });
+    </script>
+</body>
+</html>

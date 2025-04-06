@@ -1,0 +1,45 @@
+# Virtual environment
+venv/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+# Distribution / build artifacts
+.eggs/
+*.egg-info/
+dist/
+build/
+wheels/
+*.egg
+# dotenv environment variables file
+.env
+# IDE / Editor specific files
+.idea/
+.vscode/
+*.swp
+*~
+# OS specific files
+.DS_Store
+Thumbs.db
+# Uploads folder (если не хотите хранить загруженные пользователями файлы)
+uploads/
+# Файлы окружения
+*.env
+env/
+# Python кеш и скомпилированные файлы
+*.pyc
+*.pyo
+*.pyd
+# IDE папки
+# Загруженные данные (не храним в репозитории)
+*.xlsx
+*.csv
+# Flask сессии
+instance/
+# Другие
+*.log
+*.tmp
+# Папка для временных графиков (если будем сохранять)
+static/plots/
